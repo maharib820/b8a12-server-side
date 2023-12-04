@@ -116,25 +116,43 @@ async function run() {
         // send new created survey data to database
         app.post("/createsurvey", async (req, res) => {
             const modifiedData = {
-                title : req.body.title,
-                description : req.body.description,
-                question : req.body.question,
-                category : req.body.category,
-                addedby : req.body.addedby,
-                addedName : req.body.addedName,
-                surveyorImage : req.body.surveyorImage,
-                status : req.body.status,
-                addedDate : new Date(),
-                expDate : new Date(req.body.expDate),
-                yes : req.body.yes,
-                no : req.body.no,
-                like : req.body.like,
-                dislike : req.body.dislike,
-                total : req.body.total,
-                comments : req.body.comments,
-                reports : req.body.reports
+                title: req.body.title,
+                description: req.body.description,
+                question: req.body.question,
+                category: req.body.category,
+                addedby: req.body.addedby,
+                addedName: req.body.addedName,
+                surveyorImage: req.body.surveyorImage,
+                status: req.body.status,
+                addedDate: new Date(),
+                expDate: new Date(req.body.expDate),
+                yes: req.body.yes,
+                no: req.body.no,
+                like: req.body.like,
+                dislike: req.body.dislike,
+                total: req.body.total,
+                comments: req.body.comments,
+                reports: req.body.reports
             }
             const result = await surveysCollection.insertOne(modifiedData);
+            res.send(result);
+        })
+
+        // update created survey
+        app.patch("/updatecreatedsurvey/:id", async (req, res) => {
+            const id = req.params.id;
+            const data = req.body;
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: {
+                    title: req.body.title,
+                    description: req.body.description,
+                    question: req.body.question,
+                    category: req.body.category,
+                    expDate: new Date(req.body.expDate)
+                },
+            };
+            const result = await surveysCollection.updateOne(filter, updateDoc);
             res.send(result);
         })
 
@@ -176,11 +194,91 @@ async function run() {
             res.send(result);
         })
 
+        // ////////////////filter surveys//////////////////////
+        // filter using title
+        app.get("/publishedsurveysfilter", async (req, res) => {
+            // const filter = { status: "publish" }
+            const title = req.query.title;
+            const query = {
+                status: "publish",
+                title: { $regex: title, $options: "i" }
+            }
+            const result = await surveysCollection.find(query).toArray();
+            res.send(result);
+        })
+
+        // filter using category
+        app.get("/publishedsurveysfilterC", async (req, res) => {
+            // const filter = { status: "publish" }
+            const category = req.query.category;
+            const query = {
+                status: "publish",
+                category: { $regex: category, $options: "i" }
+            }
+            const result = await surveysCollection.find(query).toArray();
+            res.send(result);
+        })
+
+        // filter using sort
+        app.get("/publishedsurveysfilterS", async (req, res) => {
+            const filter = { status: "publish" }
+            const value = req.query.value;
+            console.log(value);
+            if (value === "1") {
+                const options = {
+                    sort: { total: 1 },
+                };
+                const result = await surveysCollection.find(filter, options).toArray();
+                return res.send(result);
+            }
+            else {
+                const options = {
+                    sort: { total: -1 },
+                };
+                const result = await surveysCollection.find(filter, options).toArray();
+                return res.send(result);
+            }
+        })
+
+        // homepage show top 6 voted
+        app.get("/featured", async (req, res) => {
+            const filter = { status: "publish" }
+            const options = {
+                sort: { total: -1 },
+            };
+            const result = await surveysCollection.find(filter, options).limit(6).toArray();
+            res.send(result);
+        })
+
+        // homepage show recent 6 voted
+        app.get("/recent", async (req, res) => {
+            const filter = { status: "publish" }
+            const options = {
+                sort: { addedDate: -1 },
+            };
+            const result = await surveysCollection.find(filter, options).limit(6).toArray();
+            res.send(result);
+        })
+
+        // admin survey responses
+        app.get("/adminsurveyresponses", async (req, res) => {
+            const result = await surveysCollection.find().toArray();
+            res.send(result);
+        })
+
+        // surveyor survey responses
+        app.get("/surveyorsurveyresponses/:email", async (req, res) => {
+            const email = req.params.email;
+            const filter = {addedby: email}
+            const result = await surveysCollection.find(filter).toArray();
+            res.send(result);
+        })
+
         // fetch single survey details from database
         app.get("/surveydetails/:id", async (req, res) => {
             const id = req.params.id;
             const filter = { _id: new ObjectId(id) };
-            const result = await surveysCollection.find(filter).toArray();
+            const result = await surveysCollection.findOne(filter);
             res.send(result);
         })
 
@@ -219,32 +317,33 @@ async function run() {
 
 
         // big modification after survey done
-        app.patch("/surveyaftervote/:id", async(req, res) => {
+        app.patch("/surveyaftervote/:id", async (req, res) => {
             const id = req.params.id;
             const data = req.body;
             const forCheck = data[0];
             const forUpdate = data[1];
             console.log(forCheck, forUpdate);
-            const filter = {_id: new ObjectId(id)};
+            const filter = { _id: new ObjectId(id) };
             const updateDoc = {
                 $set: {
-                  yes: forUpdate.newYes,
-                  no: forUpdate.newNo,
-                  like: forUpdate.newLike,
-                  dislike: forUpdate.newDisLike,
-                  total: forUpdate.newTotal,
-                  comments: forUpdate.newComments
+                    yes: forUpdate.newYes,
+                    no: forUpdate.newNo,
+                    like: forUpdate.newLike,
+                    dislike: forUpdate.newDisLike,
+                    total: forUpdate.newTotal,
+                    comments: forUpdate.newComments,
+                    reports: forUpdate.newReports
                 },
-              }; 
+            };
             const upRsult = await surveysCollection.updateOne(filter, updateDoc);
             const insResult = await attendSurveyCollection.insertOne(forCheck);
             res.send([upRsult, insResult])
         })
 
         // get who attend survey data
-        app.get("/getwhoattendsurvey/:id", async (req, res) =>{
+        app.get("/getwhoattendsurvey/:id", async (req, res) => {
             const id = req.params.id;
-            const filter = {submittedSurveyId: id};
+            const filter = { submittedSurveyId: id };
             const result = await attendSurveyCollection.find(filter).toArray();
             res.send(result);
         })
